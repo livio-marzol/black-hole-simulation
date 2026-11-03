@@ -2,6 +2,8 @@
 
 Simulação interativa 3D em tempo real de um **Buraco Negro de Schwarzschild** rodando diretamente no navegador via **WebGL**, **Three.js** e **GLSL Shaders** customizados.
 
+🔗 **Demo Online (GitHub Pages):** [https://livio-marzol.github.io/black-hole-simulation/](https://livio-marzol.github.io/black-hole-simulation/)
+
 ## ✨ Recursos Físicos e Gráficos
 
 - **Raymarching Geodésico (Relatividade Geral):** Integração numérica da trajetória dos fótons na Métrica de Schwarzschild, gerando o **Horizonte de Eventos**, a **Esfera de Fótons ($1.5 R_s$)** e a **Lente Gravitacional** do campo estelar e do disco.

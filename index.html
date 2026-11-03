@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Gargantua — Simulador Relativístico de Buraco Negro (Three.js + GLSL)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./style.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <!-- Top-Left Telemetry & Physics HUD -->
+  <aside id="telemetry-hud" class="glass-panel">
+    <div class="hud-header">
+      <span class="status-dot"></span>
+      <div style="flex:1; min-width: 0;">
+        <h1>SINGULARIDADE DE SCHWARZSCHILD</h1>
+        <p class="subtitle" id="hud-quality-mode">Qualidade Adaptativa Ativa</p>
+      </div>
+      <div class="fps-badge" id="hud-fps">60 FPS</div>
+      <button id="toggle-hud-btn" class="panel-toggle-btn" title="Minimizar/Expandir Telemetria">−</button>
+    </div>
+
+    <div id="hud-body">
+      <div class="telemetry-grid">
+        <div class="metric-card">
+          <span class="metric-label">MASSA (M<sub>BH</sub>)</span>
+          <span class="metric-value" id="hud-mass">100.0 M☉</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">RAIO HORIZONTE (R<sub>s</sub>)</span>
+          <span class="metric-value" id="hud-rs">2.20 u</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">ESFERA DE FÓTONS (1.5 R<sub>s</sub>)</span>
+          <span class="metric-value" id="hud-photon">3.30 u</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">ÓRBITA ESTÁVEL MÍN. (ISCO)</span>
+          <span class="metric-value" id="hud-isco">6.60 u</span>
+        </div>
+        <div class="metric-card highlight">
+          <span class="metric-label">EM ÓRBITA / QUEDA</span>
+          <span class="metric-value" id="hud-active">0</span>
+        </div>
+        <div class="metric-card highlight-warn">
+          <span class="metric-label">ENGOLIDOS PELO HORIZONTE</span>
+          <span class="metric-value" id="hud-swallowed">0</span>
+        </div>
+      </div>
+
+      <!-- Live Event Feed -->
+      <div id="event-feed" class="event-feed">
+        <div class="feed-item">Sistema inicializado. Métrica de Schwarzschild ativa.</div>
+      </div>
+
+      <div class="hud-hint">
+        <span>🖱️/👆 <b>Arrastar:</b> Girar</span>
+        <span>🔍/🤏 <b>Zoom:</b> Scroll/Pinça</span>
+        <span>⚡ <b>Duplo Clique/Toque:</b> Lançar astro</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Quick Mobile Action Pill (visible on mobile when panels are collapsed) -->
+  <div id="mobile-quick-bar">
+    <button id="mob-spawn-star" class="mob-pill primary">🌟 Ruptura Estelar</button>
+    <button id="mob-spawn-swarm" class="mob-pill">💥 Chuva (12x)</button>
+    <button id="mob-cam-cycle" class="mob-pill">🎥 Ângulo</button>
+  </div>
+
+  <!-- Right Control Panel -->
+  <aside id="control-panel" class="glass-panel">
+    <div class="panel-header" id="panel-header-bar">
+      <h2>⚙️ Parâmetros Físicos</h2>
+      <button id="toggle-panel-btn" class="panel-toggle-btn" title="Minimizar/Expandir Painel">−</button>
+    </div>
+
+    <div id="panel-body">
+      <div class="control-section">
+        <h3>Performance &amp; Hardware</h3>
+
+        <div class="control-row toggle-row">
+          <label for="ctrl-auto-quality" class="toggle-label">
+            <span>Ajuste Automático de Qualidade</span>
+            <input type="checkbox" id="ctrl-auto-quality" checked />
+          </label>
+        </div>
+
+        <div class="control-row">
+          <div class="control-label">
+            <span>Escala de Resolução (GPU)</span>
+            <span class="control-val" id="val-res-scale">0.85x</span>
+          </div>
+          <input type="range" id="ctrl-res-scale" min="0.40" max="1.0" step="0.05" value="0.85" />
+        </div>
+
+        <div class="control-row">
+          <div class="control-label">
+            <span>Intensidade do Brilho (Bloom)</span>
+            <span class="control-val" id="val-bloom">0.65</span>
+          </div>
+          <input type="range" id="ctrl-bloom" min="0.0" max="2.0" step="0.05" value="0.65" />
+        </div>
+      </div>
+
+      <div class="control-section">
+        <h3>Buraco Negro &amp; Espaço-Tempo</h3>
+
+        <div class="control-row">
+          <div class="control-label">
+            <span>Massa / Gravidade (M)</span>
+            <span class="control-val" id="val-mass">1.00x</span>
+          </div>
+          <input type="range" id="ctrl-mass" min="0.5" max="2.0" step="0.02" value="1.0" />
+        </div>
+
+        <div class="control-row">
+          <div class="control-label">
+            <span>Lente Gravitacional</span>
+            <span class="control-val" id="val-lensing">1.00x</span>
+          </div>
+          <input type="range" id="ctrl-lensing" min="0.0" max="1.6" step="0.05" value="1.0" />
+        </div>
+      </div>
+
+      <div class="control-section">
+        <h3>Disco de Acreção Relativístico</h3>
+
+        <div class="control-row">
+          <div class="control-label">
+            <span>Velocidade do Plasma</span>
+            <span class="control-val" id="val-disk-speed">1.00x</span>
+          </div>
+          <input type="range" id="ctrl-disk-speed" min="0.0" max="3.0" step="0.05" value="1.0" />
+        </div>
+
+        <div class="control-row">
+          <div class="control-label">
+            <span>Efeito Doppler (Beaming)</span>
+            <span class="control-val" id="val-doppler">1.00x</span>
+          </div>
+          <input type="range" id="ctrl-doppler" min="0.0" max="1.8" step="0.05" value="1.0" />
+        </div>
+
+        <div class="control-row">
+          <div class="control-label">
+            <span>Densidade do Disco</span>
+            <span class="control-val" id="val-disk-density">1.00x</span>
+          </div>
+          <input type="range" id="ctrl-disk-density" min="0.0" max="2.0" step="0.05" value="1.0" />
+        </div>
+      </div>
+
+      <div class="control-section">
+        <h3>Física Orbital &amp; Espaguetificação</h3>
+
+        <div class="control-row">
+          <div class="control-label">
+            <span>Taxa de Surgimento (Auto)</span>
+            <span class="control-val" id="val-spawn-rate">1.2 /s</span>
+          </div>
+          <input type="range" id="ctrl-spawn-rate" min="0.0" max="4.0" step="0.1" value="1.2" />
+        </div>
+
+        <div class="control-row">
+          <div class="control-label">
+            <span>Força de Espaguetificação</span>
+            <span class="control-val" id="val-spaghetti">1.00x</span>
+          </div>
+          <input type="range" id="ctrl-spaghetti" min="0.0" max="2.5" step="0.05" value="1.0" />
+        </div>
+      </div>
+
+      <div class="control-section actions-section">
+        <h3>Lançar Corpos Celestes</h3>
+        <div class="btn-grid">
+          <button id="btn-spawn-asteroid" class="action-btn">☄️ Lançar Asteroide</button>
+          <button id="btn-spawn-comet" class="action-btn">❄️ Lançar Cometa</button>
+          <button id="btn-spawn-star" class="action-btn primary-btn">🌟 Estrela (Ruptura TDE)</button>
+          <button id="btn-spawn-swarm" class="action-btn">💥 Chuva de Detritos (12x)</button>
+        </div>
+
+        <h3>Ângulos de Câmera</h3>
+        <div class="camera-grid">
+          <button id="cam-gargantua" class="cam-btn">🎬 Gargantua</button>
+          <button id="cam-grazing" class="cam-btn">📐 Rasante</button>
+          <button id="cam-polar" class="cam-btn">🧭 Polar (Topo)</button>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
